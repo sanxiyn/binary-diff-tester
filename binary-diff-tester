@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# version_*
+version_gzip () { gzip -V | head -n 1; }
+version_bzip2 () { bzip2 -V 2>&1 | head -n 1; }
+version_xz () { xz -V | head -n 1; }
+version_xdelta () { xdelta -v; }
+version_xdelta3 () { xdelta3 -V 2>&1 | head -n 1; }
+version_bsdiff () { echo bsdiff; }
+
+# compress_* original compressed
+compress_gzip () { gzip -c $1 > $2; }
+compress_bzip2 () { bzip2 -c $1 > $2; }
+compress_xz () { xz -c $1 > $2; }
+
+# uncompress_* compressed original
+uncompress_gzip () { gzip -c -d $1 > $2; }
+uncompress_bzip2 () { bzip2 -c -d $1 > $2; }
+uncompress_xz () { xz -c -d $1 > $2; }
+
+# diff_* source target diff
+diff_xdelta () { xdelta delta $1 $2 $3; }
+diff_xdelta3 () { xdelta3 -s $1 $2 $3; }
+diff_bsdiff () { bsdiff $1 $2 $3; }
+
+# patch_* source diff target
+patch_xdelta () { xdelta patch $2 $1 $3; }
+patch_xdelta3 () { xdelta3 -d -s $1 $2 $3; }
+patch_bsdiff () { bspatch $1 $3 $2; }
+
+COMPRESS='gzip bzip2 xz'
+DIFF='xdelta xdelta3 bsdiff'
+
+usage () {
+  echo "Usage:"
+  echo "    ${0##*/} version"
+  echo "    ${0##*/} test source target"
+}
+
+version () {
+  for TOOL in $COMPRESS $DIFF; do
+    version_$TOOL
+  done
+}
+
+do_test () {
+  for TOOL in $COMPRESS; do
+    echo $TOOL
+    compress_$TOOL $2 output.$TOOL
+    uncompress_$TOOL output.$TOOL input.$TOOL
+    cmp $2 input.$TOOL
+  done
+  for TOOL in $DIFF; do
+    echo $TOOL
+    diff_$TOOL $1 $2 output.$TOOL
+    patch_$TOOL $1 output.$TOOL input.$TOOL
+    cmp $2 input.$TOOL
+  done
+  stat -c '%s %n' output.* | sort -n
+}
+
+case $1 in
+"") usage;;
+version) version;;
+test) do_test $2 $3;;
+esac
